@@ -63,7 +63,7 @@ questions:
         description: "Let's Encrypt register email, for https://letsencrypt.org/docs/staging-environment"
         label: Let's Encrypt Client Register Email
         group: "Settings"
-  - variable: createCustomResource
+  - variable: installCRDs
     default: true
     description: "Create Custom Resource Definition(CRD) of certmanager"
     label: Create Custom Resource Definition(CRD)
