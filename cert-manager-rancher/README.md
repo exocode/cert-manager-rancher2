@@ -191,6 +191,144 @@ $ helm install --name my-release -f values.yaml .
 ```
 > **Tip**: You can use the default [values.yaml](https://github.com/jetstack/cert-manager/blob/master/deploy/charts/cert-manager/values.yaml)
 
+## example workloads
+
+for HTTP (to test your deployment we use a Rancher "hello-world" app)
+
+```yaml
+---
+apiVersion: "apps/v1"
+kind: "Deployment"
+metadata:
+  name: "nginx-hello-world"
+  labels:
+    app: "hello-world"
+spec:
+  selector:
+    matchLabels:
+      app: "hello-world"
+  strategy:
+    type: "Recreate"
+  template:
+    metadata:
+      labels:
+        app: "hello-world"
+    spec:
+      containers:
+        - image: "rancher/hello-world"
+          name: "nginx-hello-world"
+          imagePullPolicy: "Always"
+          ports:
+            - containerPort: 80
+              name: "http"
+```
+
+Configure your loadbalancer with a few annotations to tell hccm what to do:
+
+```yaml
+---
+apiVersion: "v1"
+kind: Service
+metadata:
+  name: "nginx-hello-world"
+  labels:
+    app: "hello-world"
+  annotations:
+    load-balancer.hetzner.cloud/hostname: YOUR.DOMAIN.COM
+    load-balancer.hetzner.cloud/name: YOUR_LOADBALANCER_ID_OR_NAME
+    load-balancer.hetzner.cloud/protocol: http
+    load-balancer.hetzner.cloud/health-check-port: 10254 # Ranchers default nginx-ingress-controller port
+spec:
+  type: LoadBalancer
+  selector:
+    app: "hello-world"
+  ports:
+    - name: "http"
+      port: 80
+      targetPort: 80
+```
+
+### For https SSL/TLS use this loadBalancer (most basic)
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-hello-world
+  labels:
+    app: hello-world
+  annotations:
+    load-balancer.hetzner.cloud/hostname: YOUR.DOMAIN.COM
+    load-balancer.hetzner.cloud/name: YOUR_LOADBALANCER_ID_OR_NAME
+    load-balancer.hetzner.cloud/http-certificates: NAME_OR_ID_OF_YOUR_CERT
+    load-balancer.hetzner.cloud/protocol: https
+
+spec: 
+  ports:
+  - name: https
+    port: 443
+    targetPort: 80
+  selector:
+    app: hello-world
+  type: LoadBalancer
+
+```
+
+## Settings you can attach to configure your loadbalancer
+
+**Annotations:**
+You have different possibilites to configure the behaviour of the management of your cluster, nodes, and loadbalancers: (odering: most used on top).
+
+```yaml
+# is the ID assigned to the Hetzner Cloud Load Balancer by the backend. Read-only.
+load-balancer.hetzner.cloud/id: 12345
+# specifies the path we try to access when performing the health check.
+load-balancer.hetzner.cloud/health-check-http-path: '/healthz'
+# specifies the port the health check is be performed on.
+load-balancer.hetzner.cloud/health-check-port: '10254'
+# disables the public network of the Hetzner Cloud Load Balancer. It will still have a public network assigned, but all traffic is routed over the private network.
+load-balancer.hetzner.cloud/disable-public-network: true
+# specifies the hostname of the Load Balancer. This will be used as ingress address instead of the Load Balancer IP addresses if specified.
+load-balancer.hetzner.cloud/hostname: www.example.com
+# specifies the location where the Load Balancer will be created in. Changing the location to a different value after the load balancer was created has no effect. In order to move a load balancer to a different location it is necessary to delete and re-create it. Note, that this will lead to the load balancer getting new public IPs assigned. Mutually exclusive with LBNetworkZone.
+load-balancer.hetzner.cloud/location: fsn1
+# specifies the network zone where the Load Balancer will be created in. Changing the network zone to a different value after the load balancer was created has no effect.  In order to move a load balancer to a different network zone it is necessary to delete and re-create it. Note, that this will lead to the load balancer getting new public IPs assigned. Mutually exclusive with LBLocation.
+load-balancer.hetzner.cloud/network-zone:
+# LBName is the name of the Load Balancer. The name will be visible in the Hetzner Cloud API console.
+load-balancer.hetzner.cloud/name: server-lb
+# specifies the protocol of the service. Default: tcp, Possible values: tcp, http, https
+load-balancer.hetzner.cloud/protocol: tcp, http, https
+# specifies the type of the Load Balancer. Default: lb11
+load-balancer.hetzner.cloud/type: lb11
+# configures the Load Balancer to use the private IP for Load Balancer server targets.
+load-balancer.hetzner.cloud/use-private-ip: 'true'
+load-balancer.hetzner.cloud/algorithm-type: round_robin, least_connections
+# defines the type of certificate the Load Balancer should use. Possible values are "uploaded" and "managed". If not set LBSvcHTTPCertificateType defaults to "uploaded". LBSvcHTTPManagedCertificateDomains is ignored in this case. HTTPS only.
+load-balancer.hetzner.cloud/certificate-type: "uploaded" and "managed"
+# disables the use of the private network for ingress.
+load-balancer.hetzner.cloud/disable-private-ingress:
+load-balancer.hetzner.cloud/health-check-http-domain:
+load-balancer.hetzner.cloud/health-check-interval: 60
+load-balancer.hetzner.cloud/health-check-protocol: tcp, http, https
+load-balancer.hetzner.cloud/health-check-retries: 5
+load-balancer.hetzner.cloud/health-check-timeout: 10
+load-balancer.hetzner.cloud/http-status-codes: 200,201
+load-balancer.hetzner.cloud/http-certificates: cert1, cert2
+load-balancer.hetzner.cloud/ipv4: 127.0.0.1
+load-balancer.hetzner.cloud/ipv6: 2a01:4f8:c011:53c::1
+load-balancer.hetzner.cloud/ipv6-disabled: false
+# specifies if the Load Balancer services should use the proxy protocol.
+load-balancer.hetzner.cloud/uses-proxyprotocol: 'false'
+load-balancer.hetzner.cloud/http-cookie-name: name-cookie
+load-balancer.hetzner.cloud/http-cookie-lifetime:
+load-balancer.hetzner.cloud/http-managed-certificate-name:
+load-balancer.hetzner.cloud/http-managed-certificate-domains: domain.com,www.domain.com
+load-balancer.hetzner.cloud/http-redirect-http:
+load-balancer.hetzner.cloud/http-sticky-sessions: false
+```
+
+You can see them here: https://github.com/hetznercloud/hcloud-cloud-controller-manager/blob/master/internal/annotation/load_balancer.go
+ 
 ## Contributing
 
 This chart is maintained at [github.com/jetstack/cert-manager](https://github.com/jetstack/cert-manager/tree/master/deploy/charts/cert-manager).
